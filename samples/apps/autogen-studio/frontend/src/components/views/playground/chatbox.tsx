@@ -29,7 +29,7 @@ const ChatBox = ({
   editable?: boolean;
 }) => {
   const session: IChatSession | null = useConfigStore((state) => state.session);
-  const queryInputRef = React.useRef<HTMLInputElement>(null);
+  const textAreaInputRef = React.useRef<HTMLTextAreaElement>(null);
   const messageBoxInputRef = React.useRef<HTMLDivElement>(null);
   const { user } = React.useContext(appContext);
 
@@ -37,6 +37,7 @@ const ChatBox = ({
   const deleteMsgUrl = `${serverUrl}/messages/delete`;
 
   const [loading, setLoading] = React.useState(false);
+  const [text, setText] = React.useState("");
   const [error, setError] = React.useState<IStatus | null>({
     status: true,
     message: "All good",
@@ -51,7 +52,7 @@ const ChatBox = ({
   let pageHeight, chatMaxHeight;
   if (typeof window !== "undefined") {
     pageHeight = window.innerHeight;
-    chatMaxHeight = pageHeight - 300 + "px";
+    chatMaxHeight = pageHeight - 350 + "px";
   }
 
   const parseMessages = (messages: any) => {
@@ -77,44 +78,6 @@ const ChatBox = ({
     const initMsgs: IChatMessage[] = parseMessages(initMessages);
     setMessages(initMsgs);
   }, [initMessages]);
-
-  const deleteMessage = (messageId: string) => {
-    setError(null);
-    setLoading(true);
-    // const fetch;
-    const payLoad = {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: user?.email,
-        msg_id: messageId,
-        session_id: session?.id,
-      }),
-    };
-
-    const onSuccess = (data: any) => {
-      console.log(data);
-      if (data && data.status) {
-        message.success(data.message);
-        setMessages(parseMessages(data.data));
-
-        console.log("updated profile", data);
-      } else {
-        message.error(data.message);
-      }
-      setLoading(false);
-    };
-
-    const onError = (err: any) => {
-      setError(err);
-
-      message.error(err.message);
-      setLoading(false);
-    };
-    fetchJSON(deleteMsgUrl, payLoad, onSuccess, onError);
-  };
 
   const promptButtons = examplePrompts.map((prompt, i) => {
     return (
@@ -219,17 +182,19 @@ const ChatBox = ({
               </span>
             )} */}
           </div>
-          <div className="font-semibold text-secondary text-sm w-14">{`${
-            isUser ? "USER" : "AGENT"
+          <div className="font-semibold text-secondary text-sm w-16">{`${
+            isUser ? "USER" : "AGENTS"
           }`}</div>
           <div
             // style={{ minWidth: "70%" }}
-            className={`inline-block relative ${
+            className={`inline-block group relative ${
               isUser ? "" : " w-full "
             } p-2 rounded  ${css}`}
           >
             {" "}
-            {items.length > 0 && editable && <div className="   ">{menu}</div>}
+            {items.length > 0 && editable && (
+              <div className=" group-hover:opacity-100 opacity-0 ">{menu}</div>
+            )}
             {isUser && (
               <>
                 <div className="inline-block">{message.text}</div>
@@ -265,28 +230,26 @@ const ChatBox = ({
     }, 200);
   }, [messages]);
 
+  const textAreaDefaultHeight = "50px";
   // clear text box if loading has just changed to false and there is no error
   React.useEffect(() => {
-    if (loading === false && queryInputRef.current) {
-      if (queryInputRef.current) {
-        // console.log("loading changed", loading, error);
+    if (loading === false && textAreaInputRef.current) {
+      if (textAreaInputRef.current) {
         if (error === null || (error && error.status === false)) {
-          queryInputRef.current.value = "";
+          textAreaInputRef.current.value = "";
+          textAreaInputRef.current.style.height = textAreaDefaultHeight;
         }
       }
     }
   }, [loading]);
 
-  // scroll to queryInputRef on load
   React.useEffect(() => {
-    // console.log("scrolling to query input");
-    // if (queryInputRef.current) {
-    //   queryInputRef.current.scrollIntoView({
-    //     behavior: "smooth",
-    //     block: "center",
-    //   });
-    // }
-  }, []);
+    if (textAreaInputRef.current) {
+      textAreaInputRef.current.style.height = textAreaDefaultHeight; // Reset height to shrink if text is deleted
+      const scrollHeight = textAreaInputRef.current.scrollHeight;
+      textAreaInputRef.current.style.height = `${scrollHeight}px`;
+    }
+  }, [text]);
 
   const chatHistory = (messages: IChatMessage[] | null) => {
     let history = "";
@@ -343,7 +306,6 @@ const ChatBox = ({
         if (res.status === 200) {
           res.json().then((data) => {
             if (data && data.status) {
-              console.log("******* response received ", data);
               const botMesage: IChatMessage = {
                 text: data.message,
                 sender: "bot",
@@ -378,8 +340,32 @@ const ChatBox = ({
       });
   };
 
+  const handleTextChange = (
+    event: React.ChangeEvent<HTMLTextAreaElement>
+  ): void => {
+    setText(event.target.value);
+  };
+
+  const handleKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ): void => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      if (textAreaInputRef.current && !loading) {
+        event.preventDefault();
+        getCompletion(textAreaInputRef.current.value);
+      }
+    }
+  };
+
   return (
     <div className="text-primary    relative  h-full rounded  ">
+      <div
+        style={{ zIndex: 100 }}
+        className=" absolute right-0  text-secondary -top-8 rounded p-2"
+      >
+        {" "}
+        <div className="text-xs"> {session?.flow_config.name}</div>
+      </div>
       <div
         ref={messageBoxInputRef}
         className="flex h-full     flex-col rounded  scroll pr-2 overflow-auto  "
@@ -414,55 +400,53 @@ const ChatBox = ({
       {editable && (
         <div className="mt-2 p-2 absolute   bg-primary  bottom-0 w-full">
           <div
-            className={`mt-2   rounded p-2 shadow-lg flex mb-1  gap-2 ${
+            className={`rounded p-2 shadow-lg flex mb-1  gap-2 ${
               loading ? " opacity-50 pointer-events-none" : ""
             }`}
           >
             {/* <input className="flex-1 p-2 ring-2" /> */}
             <form
               autoComplete="on"
-              className="flex-1 "
+              className="flex-1 relative"
               onSubmit={(e) => {
                 e.preventDefault();
-                // if (queryInputRef.current && !loading) {
-                //   getCompletion(queryInputRef.current?.value);
-                // }
               }}
             >
-              <input
+              <textarea
                 id="queryInput"
                 name="queryInput"
                 autoComplete="on"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && queryInputRef.current && !loading) {
-                    getCompletion(queryInputRef.current?.value);
+                onKeyDown={handleKeyDown}
+                onChange={handleTextChange}
+                placeholder="Write message here..."
+                ref={textAreaInputRef}
+                className="flex items-center w-full resize-none text-gray-600 bg-white p-2 ring-2 rounded-sm pl-5 pr-16"
+                style={{ maxHeight: "120px", overflowY: "auto" }}
+              />
+              <div
+                role={"button"}
+                style={{ width: "45px", height: "35px" }}
+                title="Send message"
+                onClick={() => {
+                  if (textAreaInputRef.current && !loading) {
+                    getCompletion(textAreaInputRef.current.value);
                   }
                 }}
-                ref={queryInputRef}
-                className="w-full text-gray-600 bg-white p-2 ring-2 rounded-sm"
-              />
+                className="absolute right-3 bottom-2 bg-accent hover:brightness-75 transition duration-300 rounded cursor-pointer flex justify-center items-center"
+              >
+                {" "}
+                {!loading && (
+                  <div className="inline-block  ">
+                    <PaperAirplaneIcon className="h-6 w-6 text-white " />{" "}
+                  </div>
+                )}
+                {loading && (
+                  <div className="inline-block   ">
+                    <Cog6ToothIcon className="text-white animate-spin rounded-full h-6 w-6" />
+                  </div>
+                )}
+              </div>
             </form>
-            <div
-              role={"button"}
-              onClick={() => {
-                if (queryInputRef.current && !loading) {
-                  getCompletion(queryInputRef.current?.value);
-                }
-              }}
-              className="bg-accent hover:brightness-75 transition duration-300 rounded pt-2 px-5 "
-            >
-              {" "}
-              {!loading && (
-                <div className="inline-block   ">
-                  <PaperAirplaneIcon className="h-6 text-white   inline-block" />{" "}
-                </div>
-              )}
-              {loading && (
-                <div className="inline-block   ">
-                  <Cog6ToothIcon className="relative -pb-2 text-white animate-spin  inline-flex rounded-full h-6 w-6" />
-                </div>
-              )}
-            </div>
           </div>{" "}
           <div>
             <div className="mt-2 text-xs text-secondary">

@@ -16,7 +16,8 @@ on:
   workflow_dispatch:
   merge_group:
     types: [checks_requested]
-
+permissions:
+  contents: write
 jobs:
   checks:
     if: github.event_name != 'push'
@@ -26,9 +27,9 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 14.x
+          node-version: 18.x
       - name: setup python
         uses: actions/setup-python@v4
         with:
@@ -60,9 +61,9 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 14.x
+          node-version: 18.x
       - name: setup python
         uses: actions/setup-python@v4
         with:
