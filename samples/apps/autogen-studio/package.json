@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "gatsby-cli": "^5.13.2",
+    "yarn": "^1.22.21"
+  }
+}

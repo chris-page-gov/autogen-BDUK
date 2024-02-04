@@ -17,5 +17,13 @@
         }
     },
     "dockerFile": "Dockerfile",
-    "updateContentCommand": "pip install -e . pre-commit && pre-commit install"
+    "updateContentCommand": "pip install -e . pre-commit && pre-commit install",
+    "postCreateCommand": [
+        "cd samples/apps/autogen-studio",
+        "npm install gatsby-cli",
+        "npm install yarn",
+        "cd frontend",
+        "yarn install",
+        "yarn build"
+    ]
 }
