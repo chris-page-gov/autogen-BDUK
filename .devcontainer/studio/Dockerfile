@@ -5,6 +5,9 @@
 
 FROM mcr.microsoft.com/vscode/devcontainers/python:3.10
 
+# Upgrade pip
+RUN pip install --upgrade pip
+
 #
 # Update the OS and maybe install packages
 #
