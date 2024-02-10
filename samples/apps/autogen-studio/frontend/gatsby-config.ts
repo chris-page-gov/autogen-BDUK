@@ -9,7 +9,8 @@ const config: GatsbyConfig = {
   siteMetadata: {
     title: `AutoGen Studio [Beta]`,
     description: `Build Multi-Agent Apps`,
-    siteUrl: `http://tbd.place`,
+    // siteUrl: `http://tbd.place`,
+    siteUrl: `http://localhost:8000`,
   },
   flags: {
     LAZY_IMAGES: true,
