@@ -1,10 +1,14 @@
+#!/usr/bin/env python3 -m pytest
+
 import json
+import os
+import sys
 from typing import Any, Dict, List, Literal, Optional, Union
 from unittest.mock import MagicMock
+
 import pytest
+
 from autogen import OpenAIWrapper, config_list_from_json, config_list_openai_aoai
-import sys
-import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from conftest import skip_openai  # noqa: E402
@@ -18,12 +22,12 @@ else:
 
     # raises exception if openai>=1 is installed and something is wrong with imports
     # otherwise the test will be skipped
+    from openai.types.chat.chat_completion import ChatCompletionMessage  # type: ignore [attr-defined]
     from openai.types.chat.chat_completion_chunk import (
         ChoiceDeltaFunctionCall,
         ChoiceDeltaToolCall,
         ChoiceDeltaToolCallFunction,
     )
-    from openai.types.chat.chat_completion import ChatCompletionMessage  # type: ignore [attr-defined]
 
 KEY_LOC = "notebook"
 OAI_CONFIG_LIST = "OAI_CONFIG_LIST"
@@ -233,7 +237,7 @@ def test_chat_tools_stream() -> None:
     config_list = config_list_from_json(
         env_or_file=OAI_CONFIG_LIST,
         file_location=KEY_LOC,
-        filter_dict={"model": ["gpt-3.5-turbo", "gpt-35-turbo"]},
+        filter_dict={"tags": ["multitool"]},
     )
     tools = [
         {
@@ -254,7 +258,6 @@ def test_chat_tools_stream() -> None:
             },
         },
     ]
-    print(f"{config_list=}")
     client = OpenAIWrapper(config_list=config_list)
     response = client.create(
         # the intention is to trigger two tool invocations as a response to a single message
@@ -294,7 +297,8 @@ def test_completion_stream() -> None:
 
 
 if __name__ == "__main__":
-    test_aoai_chat_completion_stream()
-    test_chat_completion_stream()
-    test_chat_functions_stream()
-    test_completion_stream()
+    # test_aoai_chat_completion_stream()
+    # test_chat_completion_stream()
+    # test_chat_functions_stream()
+    # test_completion_stream()
+    test_chat_tools_stream()

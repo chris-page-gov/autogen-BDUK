@@ -39,7 +39,9 @@ export interface IAgentConfig {
   max_consecutive_auto_reply: number;
   system_message: string | "";
   is_termination_msg?: boolean | string;
+  default_auto_reply?: string | null;
   code_execution_config?: boolean | string | { [key: string]: any } | null;
+  description?: string;
 }
 
 export interface IAgentFlowSpec {
@@ -48,7 +50,6 @@ export interface IAgentFlowSpec {
   timestamp?: string;
   id?: string;
   skills?: Array<ISkill>;
-  description?: string;
   user_id?: string;
 }
 
@@ -57,7 +58,7 @@ export interface IGroupChatConfig {
   admin_name: string;
   messages: Array<any>;
   max_round: number;
-  speaker_selection_method: string;
+  speaker_selection_method: "auto" | "round_robin" | "random";
   allow_repeat_speaker: boolean | Array<IAgentConfig>;
 }
 
@@ -92,6 +93,7 @@ export interface IModelConfig {
   user_id?: string;
   timestamp?: string;
   description?: string;
+  id?: string;
 }
 
 export interface IMetadataFile {
@@ -107,6 +109,7 @@ export interface IChatSession {
   user_id: string;
   timestamp: string;
   flow_config: IFlowConfig;
+  name: string;
 }
 
 export interface IGalleryItem {
@@ -119,7 +122,7 @@ export interface IGalleryItem {
 
 export interface ISkill {
   title: string;
-  file_name: string;
+  file_name?: string;
   content: string;
   id?: string;
   timestamp?: string;

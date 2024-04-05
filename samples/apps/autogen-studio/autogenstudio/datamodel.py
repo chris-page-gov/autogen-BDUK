@@ -1,8 +1,9 @@
 import uuid
+from dataclasses import asdict, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
+
 from pydantic.dataclasses import dataclass
-from dataclasses import asdict, field
 
 
 @dataclass
@@ -33,8 +34,8 @@ class Message(object):
 @dataclass
 class Skill(object):
     title: str
-    file_name: str
     content: str
+    file_name: Optional[str] = None
     id: Optional[str] = None
     description: Optional[str] = None
     timestamp: Optional[str] = None
@@ -92,6 +93,8 @@ class LLMConfig:
     temperature: float = 0
     cache_seed: Optional[Union[int, None]] = None
     timeout: Optional[int] = None
+    max_tokens: Optional[int] = None
+    extra_body: Optional[dict] = None
 
     def dict(self):
         result = asdict(self)
@@ -110,6 +113,8 @@ class AgentConfig:
     system_message: Optional[str] = None
     is_termination_msg: Optional[Union[bool, str, Callable]] = None
     code_execution_config: Optional[Union[bool, str, Dict[str, Any]]] = None
+    default_auto_reply: Optional[str] = ""
+    description: Optional[str] = None
 
     def dict(self):
         result = asdict(self)
@@ -128,7 +133,6 @@ class AgentFlowSpec:
     timestamp: Optional[str] = None
     user_id: Optional[str] = None
     skills: Optional[Union[None, List[Skill]]] = None
-    description: Optional[str] = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -153,6 +157,7 @@ class GroupChatConfig:
     max_round: Optional[int] = 10
     admin_name: Optional[str] = "Admin"
     speaker_selection_method: Optional[str] = "auto"
+    # TODO: match the new group chat default and support transition spec
     allow_repeat_speaker: Optional[Union[bool, List[AgentConfig]]] = True
 
     def dict(self):
@@ -171,7 +176,7 @@ class GroupChatFlowSpec:
     id: Optional[str] = None
     timestamp: Optional[str] = None
     user_id: Optional[str] = None
-    description: Optional[str] = None
+    skills: Optional[Union[None, List[Skill]]] = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -237,6 +242,8 @@ class Session(object):
     id: Optional[str] = None
     timestamp: Optional[str] = None
     flow_config: AgentWorkFlowConfig = None
+    name: Optional[str] = None
+    description: Optional[str] = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -296,3 +303,16 @@ class DBWebRequestModel(object):
     agent: Optional[AgentFlowSpec] = None
     workflow: Optional[AgentWorkFlowConfig] = None
     model: Optional[Model] = None
+    message: Optional[Message] = None
+    connection_id: Optional[str] = None
+
+
+@dataclass
+class SocketMessage(object):
+    connection_id: str
+    data: Dict[str, Any]
+    type: str
+
+    def dict(self):
+        result = asdict(self)
+        return result

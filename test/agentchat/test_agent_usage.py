@@ -1,11 +1,14 @@
-from autogen.agent_utils import gather_usage_summary
-from autogen import AssistantAgent, UserProxyAgent
-from test_assistant_agent import KEY_LOC, OAI_CONFIG_LIST
-import pytest
-from conftest import skip_openai
-import autogen
+#!/usr/bin/env python3 -m pytest
+
 import io
 from contextlib import redirect_stdout
+
+import pytest
+from conftest import skip_openai
+from test_assistant_agent import KEY_LOC, OAI_CONFIG_LIST
+
+import autogen
+from autogen import AssistantAgent, UserProxyAgent, gather_usage_summary
 
 try:
     import openai
@@ -108,10 +111,12 @@ def test_agent_usage():
     )
 
     math_problem = "$x^3=125$. What is x?"
-    ai_user_proxy.initiate_chat(
+    res = ai_user_proxy.initiate_chat(
         assistant,
         message=math_problem,
+        summary_method="reflection_with_llm",
     )
+    print("Result summary:", res.summary)
 
     # test print
     captured_output = io.StringIO()

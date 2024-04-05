@@ -1,46 +1,69 @@
-from unittest.mock import MagicMock
-import uuid
-import pytest
+#!/usr/bin/env python3 -m pytest
+
 import os
 import sys
+import uuid
+from unittest.mock import MagicMock
+
+import openai
+import pytest
+
 import autogen
-from autogen import OpenAIWrapper
+from autogen import OpenAIWrapper, UserProxyAgent
+from autogen.agentchat.contrib.gpt_assistant_agent import GPTAssistantAgent
+from autogen.oai.openai_utils import retrieve_assistants_by_name
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
-from conftest import skip_openai  # noqa: E402
+from conftest import skip_openai as skip  # noqa: E402
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from test_assistant_agent import KEY_LOC, OAI_CONFIG_LIST  # noqa: E402
 
-try:
-    import openai
-    from autogen.agentchat.contrib.gpt_assistant_agent import GPTAssistantAgent
-    from autogen.oai.openai_utils import retrieve_assistants_by_name
-
-except ImportError:
-    skip = True
-else:
-    skip = False or skip_openai
-
 if not skip:
-    config_list = autogen.config_list_from_json(
-        OAI_CONFIG_LIST, file_location=KEY_LOC, filter_dict={"api_type": ["openai"]}
+    openai_config_list = autogen.config_list_from_json(
+        OAI_CONFIG_LIST,
+        file_location=KEY_LOC,
+        # The Retrieval tool requires at least gpt-3.5-turbo-1106 (newer versions are supported) or gpt-4-turbo-preview models.
+        # https://platform.openai.com/docs/models/overview
+        filter_dict={
+            "api_type": ["openai"],
+            "model": [
+                "gpt-4-turbo-preview",
+                "gpt-4-0125-preview",
+                "gpt-4-1106-preview",
+                "gpt-3.5-turbo",
+                "gpt-3.5-turbo-0125",
+                "gpt-3.5-turbo-1106",
+            ],
+        },
+    )
+    aoai_config_list = autogen.config_list_from_json(
+        OAI_CONFIG_LIST,
+        file_location=KEY_LOC,
+        filter_dict={"api_type": ["azure"], "api_version": ["2024-02-15-preview"]},
     )
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_config_list() -> None:
-    assert len(config_list) > 0
+    assert len(openai_config_list) > 0
+    assert len(aoai_config_list) > 0
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_gpt_assistant_chat() -> None:
+    for gpt_config in [openai_config_list, aoai_config_list]:
+        _test_gpt_assistant_chat({"config_list": gpt_config})
+        _test_gpt_assistant_chat(gpt_config[0])
+
+
+def _test_gpt_assistant_chat(gpt_config) -> None:
     ossinsight_api_schema = {
         "name": "ossinsight_data_api",
         "parameters": {
@@ -64,7 +87,8 @@ def test_gpt_assistant_chat() -> None:
     name = f"For test_gpt_assistant_chat {uuid.uuid4()}"
     analyst = GPTAssistantAgent(
         name=name,
-        llm_config={"tools": [{"type": "function", "function": ossinsight_api_schema}], "config_list": config_list},
+        llm_config=gpt_config,
+        assistant_config={"tools": [{"type": "function", "function": ossinsight_api_schema}]},
         instructions="Hello, Open Source Project Analyst. You'll conduct comprehensive evaluations of open source projects or organizations on the GitHub platform",
     )
     try:
@@ -90,7 +114,7 @@ def test_gpt_assistant_chat() -> None:
     # check the question asked
     ask_ossinsight_mock.assert_called_once()
     question_asked = ask_ossinsight_mock.call_args[0][0].lower()
-    for word in "microsoft autogen stars github".split(" "):
+    for word in "microsoft autogen star".split(" "):
         assert word in question_asked
 
     # check the answer
@@ -104,10 +128,15 @@ def test_gpt_assistant_chat() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_get_assistant_instructions() -> None:
+    for gpt_config in [openai_config_list, aoai_config_list]:
+        _test_get_assistant_instructions(gpt_config)
+
+
+def _test_get_assistant_instructions(gpt_config) -> None:
     """
     Test function to create a new GPTAssistantAgent, set its instructions, retrieve the instructions,
     and assert that the retrieved instructions match the set instructions.
@@ -117,7 +146,7 @@ def test_get_assistant_instructions() -> None:
         name,
         instructions="This is a test",
         llm_config={
-            "config_list": config_list,
+            "config_list": gpt_config,
         },
     )
 
@@ -128,10 +157,15 @@ def test_get_assistant_instructions() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_gpt_assistant_instructions_overwrite() -> None:
+    for gpt_config in [openai_config_list, aoai_config_list]:
+        _test_gpt_assistant_instructions_overwrite(gpt_config)
+
+
+def _test_gpt_assistant_instructions_overwrite(gpt_config) -> None:
     """
     Test that the instructions of a GPTAssistantAgent can be overwritten or not depending on the value of the
     `overwrite_instructions` parameter when creating a new assistant with the same ID.
@@ -151,7 +185,7 @@ def test_gpt_assistant_instructions_overwrite() -> None:
         name,
         instructions=instructions1,
         llm_config={
-            "config_list": config_list,
+            "config_list": gpt_config,
         },
     )
 
@@ -161,7 +195,8 @@ def test_gpt_assistant_instructions_overwrite() -> None:
             name,
             instructions=instructions2,
             llm_config={
-                "config_list": config_list,
+                "config_list": gpt_config,
+                # keep it to test older version of assistant config
                 "assistant_id": assistant_id,
             },
             overwrite_instructions=True,
@@ -176,8 +211,8 @@ def test_gpt_assistant_instructions_overwrite() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_gpt_assistant_existing_no_instructions() -> None:
     """
@@ -191,7 +226,7 @@ def test_gpt_assistant_existing_no_instructions() -> None:
         name,
         instructions=instructions,
         llm_config={
-            "config_list": config_list,
+            "config_list": openai_config_list,
         },
     )
 
@@ -202,9 +237,9 @@ def test_gpt_assistant_existing_no_instructions() -> None:
         assistant = GPTAssistantAgent(
             name,
             llm_config={
-                "config_list": config_list,
-                "assistant_id": assistant_id,
+                "config_list": openai_config_list,
             },
+            assistant_config={"assistant_id": assistant_id},
         )
 
         instruction_match = assistant.get_assistant_instructions() == instructions
@@ -216,8 +251,8 @@ def test_gpt_assistant_existing_no_instructions() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_get_assistant_files() -> None:
     """
@@ -225,15 +260,16 @@ def test_get_assistant_files() -> None:
     and assert that the retrieved instructions match the set instructions.
     """
     current_file_path = os.path.abspath(__file__)
-    openai_client = OpenAIWrapper(config_list=config_list)._clients[0]._oai_client
+    openai_client = OpenAIWrapper(config_list=openai_config_list)._clients[0]._oai_client
     file = openai_client.files.create(file=open(current_file_path, "rb"), purpose="assistants")
     name = f"For test_get_assistant_files {uuid.uuid4()}"
 
+    # keep it to test older version of assistant config
     assistant = GPTAssistantAgent(
         name,
         instructions="This is a test",
         llm_config={
-            "config_list": config_list,
+            "config_list": openai_config_list,
             "tools": [{"type": "retrieval"}],
             "file_ids": [file.id],
         },
@@ -246,15 +282,14 @@ def test_get_assistant_files() -> None:
 
     finally:
         assistant.delete_assistant()
-
-    openai_client.files.delete(file.id)
+        openai_client.files.delete(file.id)
 
     assert expected_file_id in retrieved_file_ids
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_assistant_retrieval() -> None:
     """
@@ -274,7 +309,7 @@ def test_assistant_retrieval() -> None:
         "description": "This is a test function 2",
     }
 
-    openai_client = OpenAIWrapper(config_list=config_list)._clients[0]._oai_client
+    openai_client = OpenAIWrapper(config_list=openai_config_list)._clients[0]._oai_client
     current_file_path = os.path.abspath(__file__)
 
     file_1 = openai_client.files.create(file=open(current_file_path, "rb"), purpose="assistants")
@@ -282,6 +317,9 @@ def test_assistant_retrieval() -> None:
 
     try:
         all_llm_config = {
+            "config_list": openai_config_list,
+        }
+        assistant_config = {
             "tools": [
                 {"type": "function", "function": function_1_schema},
                 {"type": "function", "function": function_2_schema},
@@ -289,7 +327,6 @@ def test_assistant_retrieval() -> None:
                 {"type": "code_interpreter"},
             ],
             "file_ids": [file_1.id, file_2.id],
-            "config_list": config_list,
         }
 
         name = f"For test_assistant_retrieval {uuid.uuid4()}"
@@ -298,6 +335,7 @@ def test_assistant_retrieval() -> None:
             name,
             instructions="This is a test",
             llm_config=all_llm_config,
+            assistant_config=assistant_config,
         )
         candidate_first = retrieve_assistants_by_name(assistant_first.openai_client, name)
 
@@ -306,6 +344,7 @@ def test_assistant_retrieval() -> None:
                 name,
                 instructions="This is a test",
                 llm_config=all_llm_config,
+                assistant_config=assistant_config,
             )
             candidate_second = retrieve_assistants_by_name(assistant_second.openai_client, name)
 
@@ -326,8 +365,8 @@ def test_assistant_retrieval() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_assistant_mismatch_retrieval() -> None:
     """Test function to check if the GPTAssistantAgent can filter out the mismatch assistant"""
@@ -350,12 +389,13 @@ def test_assistant_mismatch_retrieval() -> None:
         "description": "This is a test function 3",
     }
 
-    openai_client = OpenAIWrapper(config_list=config_list)._clients[0]._oai_client
+    openai_client = OpenAIWrapper(config_list=openai_config_list)._clients[0]._oai_client
     current_file_path = os.path.abspath(__file__)
     file_1 = openai_client.files.create(file=open(current_file_path, "rb"), purpose="assistants")
     file_2 = openai_client.files.create(file=open(current_file_path, "rb"), purpose="assistants")
 
     try:
+        # keep it to test older version of assistant config
         all_llm_config = {
             "tools": [
                 {"type": "function", "function": function_1_schema},
@@ -364,7 +404,7 @@ def test_assistant_mismatch_retrieval() -> None:
                 {"type": "code_interpreter"},
             ],
             "file_ids": [file_1.id, file_2.id],
-            "config_list": config_list,
+            "config_list": openai_config_list,
         }
 
         name = f"For test_assistant_retrieval {uuid.uuid4()}"
@@ -400,7 +440,7 @@ def test_assistant_mismatch_retrieval() -> None:
                     {"type": "function", "function": function_1_schema},
                 ],
                 "file_ids": [file_2.id],
-                "config_list": config_list,
+                "config_list": openai_config_list,
             }
             assistant_file_ids_mismatch = GPTAssistantAgent(
                 name,
@@ -418,7 +458,7 @@ def test_assistant_mismatch_retrieval() -> None:
                     {"type": "function", "function": function_3_schema},
                 ],
                 "file_ids": [file_2.id, file_1.id],
-                "config_list": config_list,
+                "config_list": openai_config_list,
             }
             assistant_tools_mistaching = GPTAssistantAgent(
                 name,
@@ -447,8 +487,8 @@ def test_assistant_mismatch_retrieval() -> None:
 
 
 @pytest.mark.skipif(
-    sys.platform in ["darwin", "win32"] or skip,
-    reason="do not run on MacOS or windows OR dependency is not installed OR requested to skip",
+    skip,
+    reason="requested to skip",
 )
 def test_gpt_assistant_tools_overwrite() -> None:
     """
@@ -536,7 +576,9 @@ def test_gpt_assistant_tools_overwrite() -> None:
     assistant_org = GPTAssistantAgent(
         name,
         llm_config={
-            "config_list": config_list,
+            "config_list": openai_config_list,
+        },
+        assistant_config={
             "tools": original_tools,
         },
     )
@@ -548,7 +590,9 @@ def test_gpt_assistant_tools_overwrite() -> None:
         assistant = GPTAssistantAgent(
             name,
             llm_config={
-                "config_list": config_list,
+                "config_list": openai_config_list,
+            },
+            assistant_config={
                 "assistant_id": assistant_id,
                 "tools": new_tools,
             },
@@ -556,11 +600,43 @@ def test_gpt_assistant_tools_overwrite() -> None:
         )
 
         # Add logic to retrieve the tools from the assistant and assert
-        retrieved_tools = assistant.llm_config.get("tools", [])
+        retrieved_tools = assistant.openai_assistant.tools
+        retrieved_tools_name = [tool.function.name for tool in retrieved_tools]
     finally:
         assistant_org.delete_assistant()
 
-    assert retrieved_tools == new_tools
+    assert retrieved_tools_name == [tool["function"]["name"] for tool in new_tools]
+
+
+@pytest.mark.skipif(
+    skip,
+    reason="requested to skip",
+)
+def test_gpt_reflection_with_llm() -> None:
+    gpt_assistant = GPTAssistantAgent(
+        name="assistant", llm_config={"config_list": openai_config_list, "assistant_id": None}
+    )
+
+    user_proxy = UserProxyAgent(
+        name="user_proxy",
+        code_execution_config=False,
+        is_termination_msg=lambda msg: "TERMINATE" in msg["content"],
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=1,
+    )
+    result = user_proxy.initiate_chat(gpt_assistant, message="Write a Joke!", summary_method="reflection_with_llm")
+    assert result is not None
+
+    # use the assistant configuration
+    agent_using_assistant_config = GPTAssistantAgent(
+        name="assistant",
+        llm_config={"config_list": openai_config_list},
+        assistant_config={"assistant_id": gpt_assistant.assistant_id},
+    )
+    result = user_proxy.initiate_chat(
+        agent_using_assistant_config, message="Write a Joke!", summary_method="reflection_with_llm"
+    )
+    assert result is not None
 
 
 if __name__ == "__main__":

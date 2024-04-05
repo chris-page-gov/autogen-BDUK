@@ -1,9 +1,13 @@
-import autogen
-import pytest
+#!/usr/bin/env python3 -m pytest
+
 import asyncio
-import sys
 import os
+import sys
+
+import pytest
 from test_assistant_agent import KEY_LOC, OAI_CONFIG_LIST
+
+import autogen
 
 try:
     from openai import OpenAI
@@ -95,10 +99,14 @@ async def test_function_call_groupchat(key, value, sync):
     manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config_no_function)
 
     if sync:
-        observer.initiate_chat(manager, message="Let's start the game!")
+        res = observer.initiate_chat(manager, message="Let's start the game!", summary_method="reflection_with_llm")
     else:
-        await observer.a_initiate_chat(manager, message="Let's start the game!")
+        res = await observer.a_initiate_chat(
+            manager, message="Let's start the game!", summary_method="reflection_with_llm"
+        )
     assert func.call_count >= 1, "The function get_random_number should be called at least once."
+    print("Chat summary:", res.summary)
+    print("Chat cost:", res.cost)
 
 
 def test_no_function_map():
